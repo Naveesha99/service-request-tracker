@@ -68,16 +68,20 @@ class ServiceRequestController extends Controller
         return ServiceRequestResource::collection($paginator);
     }
 
-    public function show(Request $request, int $id)
+    public function show(Request $request, int $id): ServiceRequestResource
     {
-        $serviceRequest = $request->user()->serviceRequests()->findOrFail($id);
+        $serviceRequest = $request->user()->serviceRequests()->find($id);
 
-        return (new ServiceRequestResource($serviceRequest))->additional([]);
+        abort_if($serviceRequest === null, 404, 'Service request not found.');
+
+        return new ServiceRequestResource($serviceRequest);
     }
 
     public function updateStatus(UpdateRequestStatusRequest $request, int $id, RequestStatusService $service): JsonResponse
     {
-        $serviceRequest = $request->user()->serviceRequests()->findOrFail($id);
+        $serviceRequest = $request->user()->serviceRequests()->find($id);
+
+        abort_if($serviceRequest === null, 404, 'Service request not found.');
 
         $data = $request->validated();
 
@@ -101,7 +105,9 @@ class ServiceRequestController extends Controller
 
     public function history(Request $request, int $id): AnonymousResourceCollection
     {
-        $serviceRequest = $request->user()->serviceRequests()->findOrFail($id);
+        $serviceRequest = $request->user()->serviceRequests()->find($id);
+
+        abort_if($serviceRequest === null, 404, 'Service request not found.');
 
         $histories = $serviceRequest->statusHistories()
             ->with('actor:id,name,email')

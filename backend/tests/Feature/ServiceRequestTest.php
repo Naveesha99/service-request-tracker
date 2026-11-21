@@ -117,6 +117,20 @@ class ServiceRequestTest extends TestCase
             ->assertJsonCount(2, 'data');
     }
 
+    public function test_search_treats_percent_and_underscore_as_literal_characters(): void
+    {
+        $user = User::factory()->create();
+        ServiceRequest::factory()->create(['created_by' => $user->id, 'title' => 'Printer 100% repair']);
+        ServiceRequest::factory()->create(['created_by' => $user->id, 'title' => 'Printer 100X repair']);
+        ServiceRequest::factory()->create(['created_by' => $user->id, 'title' => 'Printer A_B repair']);
+
+        $this->actingAs($user, 'web')->getJson('/api/requests?search=100%25')
+            ->assertOk()->assertJsonCount(1, 'data');
+
+        $this->actingAs($user, 'web')->getJson('/api/requests?search=A_B')
+            ->assertOk()->assertJsonCount(1, 'data');
+    }
+
     public function test_status_priority_and_combined_filters_work(): void
     {
         $user = User::factory()->create();
