@@ -207,3 +207,35 @@ Run workflow tests:
 cd backend
 php artisan test --filter=RequestStatusTest
 ```
+
+## Frontend (Phase 7)
+
+The Next.js frontend uses `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` and sends credentialed native Fetch requests. It implements:
+
+- Sanctum cookie login and logout.
+- Protected dashboard, request list, creation, detail, history, and status controls.
+- Server-side search, filters, and pagination.
+- HTTP 409 conflict handling for stale status updates.
+- Responsive Tailwind UI with loading, empty, validation, and error states.
+
+Start both applications:
+
+```bash
+cd backend
+php artisan serve --host=localhost --port=8000
+```
+
+```bash
+cd frontend
+npm run dev
+```
+
+Open `http://localhost:3000/login` and use `user1@example.com` / `Password123!`.
+
+Frontend verification:
+
+```bash
+cd frontend
+npm run lint
+npm run build
+```
