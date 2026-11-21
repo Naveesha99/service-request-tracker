@@ -141,3 +141,50 @@ php artisan test --filter=ServiceRequestTest
 ```
 
 Status updates, history insertion, editing, and deletion are not included in this phase.
+
+## Status Workflow API (Phase 5)
+
+The allowed workflow is:
+
+```text
+OPEN -> IN_PROGRESS -> RESOLVED
+```
+
+Resolved requests are terminal. Skipping stages, reopening requests, duplicate transitions, and moving backward are rejected.
+
+Update a status:
+
+```text
+PATCH /api/requests/{id}/status
+```
+
+```json
+{
+  "status": "IN_PROGRESS",
+  "expected_version": 1,
+  "remark": "Technician assigned"
+}
+```
+
+A successful transition returns HTTP 200, increments `version` exactly once, and creates one audit history row. The next transition uses the updated version:
+
+```json
+{
+  "status": "RESOLVED",
+  "expected_version": 2,
+  "remark": "Printer repaired"
+}
+```
+
+The endpoint uses a conditional database update containing the request ID, owner, status, and expected version. Failed or stale updates do not create history. Invalid transitions return HTTP 409 with `INVALID_TRANSITION`. Stale versions return HTTP 409 with `STALE_VERSION`.
+
+The status update and history insertion occur in one database transaction. If history insertion fails, the status and version update is rolled back.
+
+All status endpoints require the authenticated Sanctum web session. Non-owned and unknown request IDs return 404. SQLite is used locally; the implementation uses an atomic conditional update rather than relying only on an application version check.
+
+Run workflow tests:
+
+```bash
+cd backend
+php artisan test --filter=RequestStatusTest
+```

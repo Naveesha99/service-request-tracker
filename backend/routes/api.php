@@ -17,5 +17,6 @@ Route::middleware('auth')->group(function (): void {
     Route::post('requests', [ServiceRequestController::class, 'store']);
     Route::get('requests', [ServiceRequestController::class, 'index']);
     Route::get('requests/{id}', [ServiceRequestController::class, 'show'])->whereNumber('id');
+    Route::patch('requests/{id}/status', [ServiceRequestController::class, 'updateStatus'])->whereNumber('id');
     Route::get('requests/{id}/history', [ServiceRequestController::class, 'history'])->whereNumber('id');
 });
