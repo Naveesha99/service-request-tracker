@@ -1,8 +1,18 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+
+import type { ApiErrorPayload } from './types';
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public data?: unknown) {
+  constructor(public status: number, message: string, public data?: ApiErrorPayload) {
     super(message);
+  }
+
+  get code(): string | undefined {
+    return this.data?.error?.code;
+  }
+
+  get fieldErrors(): Record<string, string[]> | undefined {
+    return this.data?.errors;
   }
 }
 
@@ -43,7 +53,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
         ? String((data as { message: unknown }).message)
         : null) ?? `Request failed with status ${response.status}`;
 
-    throw new ApiError(response.status, message, data);
+    throw new ApiError(response.status, message, data as ApiErrorPayload | undefined);
   }
 
   return data as T;

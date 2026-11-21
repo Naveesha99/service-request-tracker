@@ -1,10 +1,5 @@
 import { apiRequest } from './api';
-
-export type PublicUser = {
-  id: number;
-  name: string;
-  email: string;
-};
+import type { PublicUser } from './types';
 
 export async function initializeCsrf(): Promise<void> {
   await apiRequest('/sanctum/csrf-cookie');
