@@ -101,3 +101,43 @@ Manual browser verification:
 7. Call `POST http://localhost:8000/api/auth/logout` using credentials.
 8. Call `/api/auth/me` again; it should return HTTP 401.
 9. In Application/Storage > Cookies, verify the Laravel session cookie is marked HttpOnly and is not readable from document JavaScript.
+
+## Service Request API (Phase 4)
+
+All request endpoints require the authenticated web session and return JSON.
+
+- `POST /api/requests` — create an owned request.
+- `GET /api/requests` — list the authenticated user's requests.
+- `GET /api/requests/{id}` — retrieve an owned request.
+- `GET /api/requests/{id}/history` — retrieve read-only history for an owned request.
+
+Creation payload:
+
+```json
+{
+  "title": "Printer not working",
+  "description": "Office printer stopped responding.",
+  "priority": "HIGH"
+}
+```
+
+The server sets `created_by`, `status=OPEN`, and `version=1`; client values for these fields are ignored.
+
+Listing supports `search`, `status`, `priority`, `page`, and `per_page`. Search matches the title only. Status values are `OPEN`, `IN_PROGRESS`, and `RESOLVED`; priority values are `LOW`, `MEDIUM`, and `HIGH`. Filters are combined with AND logic. Results are newest first, default to 10 records per page, and allow at most 25 records per page.
+
+Example:
+
+```text
+GET /api/requests?search=printer&status=OPEN&priority=HIGH&page=1&per_page=10
+```
+
+Ownership is enforced through the authenticated user's relationship. Unknown and non-owned request IDs return 404 rather than revealing that another user's request exists. Validation errors return 422, unauthenticated requests return 401, and successful creation returns 201.
+
+Run service request tests:
+
+```bash
+cd backend
+php artisan test --filter=ServiceRequestTest
+```
+
+Status updates, history insertion, editing, and deletion are not included in this phase.
