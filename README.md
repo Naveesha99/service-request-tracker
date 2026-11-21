@@ -8,6 +8,25 @@ Monorepo containing the Laravel REST API backend and Next.js frontend for the Se
 - `frontend/` — Next.js, React, TypeScript, and Tailwind CSS
 - `screenshots/` — Local setup verification captures
 
+## Backend setup
+
+Requirements:
+
+- PHP 8.3 or newer
+- Composer 2
+- SQLite PHP extension
+
+```bash
+cd backend
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate
+php artisan db:seed
+```
+
+For a clean isolated test database, PHPUnit uses SQLite in-memory configuration and requires no separate database setup.
+
 ## Run locally
 
 Backend:
@@ -81,7 +100,7 @@ API endpoints:
 - `GET /api/auth/me` — returns the authenticated user's safe public fields; protected by `auth`.
 - `POST /api/auth/logout` — logs out, invalidates the session, and regenerates the CSRF token; protected by `auth`.
 
-Successful login regenerates the session. Logout invalidates the server-side session rather than merely deleting browser state. Passwords are checked through Laravel's authentication system. Safe user responses contain only `id`, `name`, and `email`. Service-request ownership will later be derived from `$request->user()` and enforced with authorization policies; client-supplied user IDs must not determine ownership.
+Successful login regenerates the session. Logout invalidates the server-side session rather than merely deleting browser state. Passwords are checked through Laravel's authentication system. Safe user responses contain only `id`, `name`, and `email`. Service-request ownership is derived from `$request->user()`; client-supplied user IDs cannot determine ownership.
 
 Run authentication tests:
 
@@ -140,7 +159,7 @@ cd backend
 php artisan test --filter=ServiceRequestTest
 ```
 
-Status updates, history insertion, editing, and deletion are not included in this phase.
+Editing and deletion are not included in this API.
 
 ## Status Workflow API (Phase 5)
 
