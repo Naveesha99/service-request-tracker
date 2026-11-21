@@ -38,10 +38,13 @@ function RequestList() {
       .then((response) => {
         setRequests(response.data);
         setMeta(response.meta);
+        setLoading(false);
         if (response.meta.last_page > 0 && page > response.meta.last_page) setPage(response.meta.last_page);
       })
-      .catch((caught) => setError(caught instanceof Error ? caught.message : 'Unable to load requests.'))
-      .finally(() => setLoading(false));
+      .catch((caught) => {
+        setError(caught instanceof Error ? caught.message : 'Unable to load requests.');
+        setLoading(false);
+      });
   }, [debouncedSearch, status, priority, page]);
 
   const clearFilters = () => {
@@ -49,6 +52,7 @@ function RequestList() {
     setDebouncedSearch('');
     setStatus('');
     setPriority('');
+    setLoading(true);
     setPage(1);
   };
 
@@ -61,8 +65,8 @@ function RequestList() {
 
       <div className="mt-6 grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-[1fr_160px_160px_auto]">
         <div><label htmlFor="search" className="block text-xs font-medium text-slate-600">Search title</label><input id="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search requests" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" /></div>
-        <div><label htmlFor="status" className="block text-xs font-medium text-slate-600">Status</label><select id="status" value={status} onChange={(event) => { setStatus(event.target.value as RequestStatus | ''); setPage(1); }} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"><option value="">All statuses</option><option>OPEN</option><option>IN_PROGRESS</option><option>RESOLVED</option></select></div>
-        <div><label htmlFor="priority" className="block text-xs font-medium text-slate-600">Priority</label><select id="priority" value={priority} onChange={(event) => { setPriority(event.target.value as RequestPriority | ''); setPage(1); }} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"><option value="">All priorities</option><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></div>
+        <div><label htmlFor="status" className="block text-xs font-medium text-slate-600">Status</label><select id="status" value={status} onChange={(event) => { setLoading(true); setStatus(event.target.value as RequestStatus | ''); setPage(1); }} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"><option value="">All statuses</option><option>OPEN</option><option>IN_PROGRESS</option><option>RESOLVED</option></select></div>
+        <div><label htmlFor="priority" className="block text-xs font-medium text-slate-600">Priority</label><select id="priority" value={priority} onChange={(event) => { setLoading(true); setPriority(event.target.value as RequestPriority | ''); setPage(1); }} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"><option value="">All priorities</option><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></div>
         <button type="button" onClick={clearFilters} className="self-end rounded-md border border-slate-300 px-3 py-2 text-sm font-medium">Clear</button>
       </div>
 
@@ -76,7 +80,7 @@ function RequestList() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="font-semibold">{request.title}</p><p className="mt-1 line-clamp-2 text-sm text-slate-600">{request.description}</p><p className="mt-2 text-xs text-slate-500">Created {new Date(request.created_at).toLocaleString()}</p></div><div className="flex gap-2"><PriorityBadge priority={request.priority} /><StatusBadge status={request.status} /></div></div>
             </Link>
           ))}
-          <Pagination meta={meta} onPageChange={setPage} />
+          <Pagination meta={meta} onPageChange={(nextPage) => { setLoading(true); setPage(nextPage); }} />
         </div>
       )}
     </div>

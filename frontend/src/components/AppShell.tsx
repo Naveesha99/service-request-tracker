@@ -16,6 +16,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
     try {
       await logout();
       router.replace('/login');
+    } catch {
+      window.alert('Unable to log out. Please try again.');
     } finally {
       setLoggingOut(false);
     }
