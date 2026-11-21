@@ -1,138 +1,202 @@
 # Service Request Tracker
 
-Monorepo containing the Laravel REST API backend and Next.js frontend for the Service Request Tracker technical assessment.
+## Project Overview
 
-## Project structure
+Service Request Tracker is a full-stack assessment application for creating, viewing, searching, filtering, and resolving service requests. Users authenticate with a shared Laravel session, create owned requests, and follow an enforced status workflow.
 
-- `backend/` — Laravel REST API with SQLite
-- `frontend/` — Next.js, React, TypeScript, and Tailwind CSS
-- `screenshots/` — Local setup verification captures
+## Technology Stack
 
-## Backend setup
+### Backend
+- PHP 8.6 (verified development environment)
+- Laravel 13
+- Laravel Sanctum 4
+- PHPUnit 12
+- SQLite
+- Eloquent ORM
 
-Requirements:
+### Frontend
+- Next.js 16 App Router
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Native Fetch API
 
-- PHP 8.3 or newer
-- Composer 2
-- SQLite PHP extension
+### Authentication
+- Stateful Sanctum SPA authentication
+- Laravel web session guard
+- HTTP-only cookies and CSRF protection
+
+## Architecture Overview
+
+```mermaid
+flowchart LR
+    Browser[Next.js Browser Application] -->|Credentialed Fetch + CSRF| API[Laravel REST API]
+    API -->|Sanctum Web Session| Auth[(SQLite Users / Sessions)]
+    API --> DB[(SQLite Database)]
+    DB --> Requests[service_requests]
+    DB --> History[request_status_histories]
+```
+
+The frontend at `http://localhost:3000` communicates with Laravel at `http://localhost:8000`. Both services must use `localhost`; `localhost` and `127.0.0.1` are different cookie hosts.
+
+## Features
+
+- Sanctum login, current-user lookup, and logout
+- Two seeded demo users
+- Authenticated service request creation
+- Owner-scoped request listing and detail views
+- Database title search
+- Status and priority filters
+- Server-side pagination
+- Status workflow and status history
+- Optimistic version concurrency
+- Atomic status updates and history insertion
+- Responsive Next.js interface
+
+## Prerequisites
+
+Verified environment:
+
+- PHP 8.6 CLI
+- Composer 2.11
+- PHP SQLite extension
+- Node.js 26.8
+- npm 11.19
+- SQLite 3
+
+The Composer manifest supports PHP `^8.3`; PHP 8.6 was used for verification.
+
+## Installation and Setup
+
+Clone the repository and install both applications:
 
 ```bash
+cd service-request-tracker
+
 cd backend
 composer install
 cp .env.example .env
 php artisan key:generate
 php artisan migrate
 php artisan db:seed
+
+cd ../frontend
+npm install
+cp .env.example .env.local
+npm run dev
 ```
 
-For a clean isolated test database, PHPUnit uses SQLite in-memory configuration and requires no separate database setup.
-
-## Run locally
-
-Backend:
+In another terminal, start Laravel:
 
 ```bash
 cd backend
 php artisan serve --host=localhost --port=8000
 ```
 
+Frontend URL: `http://localhost:3000`  
+Backend URL: `http://localhost:8000`
+
+Keep `SESSION_DOMAIN=null`, `SESSION_HTTP_ONLY=true`, `SESSION_SAME_SITE=lax`, and `SESSION_SECURE_COOKIE=false` for local HTTP development. Production requires HTTPS and an appropriate secure-cookie/domain configuration.
+
+Frontend environment:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+## Demo Credentials
+
+Development-only credentials:
+
+- User A: `user1@example.com` / `Password123!`
+- User B: `user2@example.com` / `Password123!`
+
+Do not reuse these demo credentials outside local development.
+
+## Running Tests
+
+Backend:
+
+```bash
+cd backend
+php artisan test
+```
+
 Frontend:
 
 ```bash
 cd frontend
-npm run dev
+npm run lint
+npm run build
 ```
 
-Frontend: http://localhost:3000
-Backend: http://localhost:8000
+The current backend suite covers authentication, database relationships, request CRUD reads/creation, ownership, filtering, pagination, status transitions, stale versions, history, and transaction rollback. The frontend has no dedicated test framework configured; browser verification was performed manually.
 
-Use `localhost` consistently for both services. Do not mix `localhost` and `127.0.0.1`, because they are different cookie hosts.
+## API Documentation
 
-## Database (Phase 2)
+All API endpoints except login and CSRF initialization require the authenticated Sanctum session.
 
-The backend uses SQLite with Laravel migrations and Eloquent.
+### Authentication
 
-- `users` — application users, reused from Laravel's default migration.
-- `service_requests` — owner, title, description, priority, status, and optimistic-concurrency version.
-- `request_status_histories` — immutable audit rows for later status transitions.
+#### Initialize CSRF
 
-Relationships:
-
-- A user has many service requests and status history records.
-- A service request belongs to its creator and has many history records.
-- A history record belongs to both a service request and an acting user.
-
-Backend database commands:
-
-```bash
-cd backend
-php artisan migrate
-php artisan db:seed
-php artisan test
+```http
+GET /sanctum/csrf-cookie
 ```
 
-Development demo accounts:
+#### Login
 
-- `user1@example.com` / `Password123!`
-- `user2@example.com` / `Password123!`
+```http
+POST /api/auth/login
+Content-Type: application/json
 
-These accounts are for local development only and use securely hashed passwords.
-
-## Authentication (Phase 3)
-
-The backend uses Laravel Sanctum stateful SPA authentication. Authentication is based on the Laravel web session guard and HTTP-only cookies; no bearer tokens or browser storage are used.
-
-Local development uses `http://localhost:3000` for the Next.js frontend and `http://localhost:8000` for Laravel. The configured stateful domains are `localhost:3000` and `localhost:8000`, CORS credentials are enabled, and `FRONTEND_URL` is limited to `http://localhost:3000`.
-
-Session cookies are HTTP-only and use `SameSite=Lax` locally. `SESSION_SECURE_COOKIE=false` is appropriate only for local HTTP development. In production, serve both applications over HTTPS and set `SESSION_SECURE_COOKIE=true`, a restrictive `SESSION_DOMAIN`, `SESSION_SAME_SITE=lax` or `strict` where compatible, and the exact production frontend origin.
-
-CSRF initialization:
-
-```bash
-curl -i -c /tmp/srt-cookies http://localhost:8000/sanctum/csrf-cookie
+{
+  "email": "user1@example.com",
+  "password": "Password123!"
+}
 ```
 
-For browser/native Fetch authentication, the frontend calls `/sanctum/csrf-cookie` first, then includes `credentials: "include"`. The reusable frontend client and authentication helper are in `frontend/src/lib/api.ts` and `frontend/src/lib/auth.ts`.
-
-API endpoints:
-
-- `POST /api/auth/login` — validates credentials and creates a web session.
-- `GET /api/auth/me` — returns the authenticated user's safe public fields; protected by `auth`.
-- `POST /api/auth/logout` — logs out, invalidates the session, and regenerates the CSRF token; protected by `auth`.
-
-Successful login regenerates the session. Logout invalidates the server-side session rather than merely deleting browser state. Passwords are checked through Laravel's authentication system. Safe user responses contain only `id`, `name`, and `email`. Service-request ownership is derived from `$request->user()`; client-supplied user IDs cannot determine ownership.
-
-Run authentication tests:
-
-```bash
-cd backend
-php artisan test
-```
-
-Manual browser verification:
-
-1. Start Laravel with `cd backend && php artisan serve --host=localhost --port=8000`.
-2. Start Next.js with `cd frontend && npm run dev`.
-3. In browser developer tools, verify the frontend is using `http://localhost:3000`.
-4. Initialize CSRF with `GET http://localhost:8000/sanctum/csrf-cookie` or the frontend login helper.
-5. Call `POST http://localhost:8000/api/auth/login` with `user1@example.com` and `Password123!`, using credentials included.
-6. Call `GET http://localhost:8000/api/auth/me`; it should return Demo User One.
-7. Call `POST http://localhost:8000/api/auth/logout` using credentials.
-8. Call `/api/auth/me` again; it should return HTTP 401.
-9. In Application/Storage > Cookies, verify the Laravel session cookie is marked HttpOnly and is not readable from document JavaScript.
-
-## Service Request API (Phase 4)
-
-All request endpoints require the authenticated web session and return JSON.
-
-- `POST /api/requests` — create an owned request.
-- `GET /api/requests` — list the authenticated user's requests.
-- `GET /api/requests/{id}` — retrieve an owned request.
-- `GET /api/requests/{id}/history` — retrieve read-only history for an owned request.
-
-Creation payload:
+Success: `200`
 
 ```json
+{
+  "message": "Login successful.",
+  "data": {
+    "user": {
+      "id": 1,
+      "name": "Demo User One",
+      "email": "user1@example.com"
+    }
+  }
+}
+```
+
+Invalid credentials: `422`.
+
+#### Current user
+
+```http
+GET /api/auth/me
+```
+
+Success: `200` with `data.user`. Unauthenticated: `401`.
+
+#### Logout
+
+```http
+POST /api/auth/logout
+```
+
+Success: `200` with a success message. Unauthenticated: `401`.
+
+### Service Requests
+
+#### Create
+
+```http
+POST /api/requests
+Content-Type: application/json
+
 {
   "title": "Printer not working",
   "description": "Office printer stopped responding.",
@@ -140,44 +204,54 @@ Creation payload:
 }
 ```
 
-The server sets `created_by`, `status=OPEN`, and `version=1`; client values for these fields are ignored.
+Success: `201` with the created request in `data`. Validation failures: `422`. Unauthenticated: `401`.
 
-Listing supports `search`, `status`, `priority`, `page`, and `per_page`. Search matches the title only. Status values are `OPEN`, `IN_PROGRESS`, and `RESOLVED`; priority values are `LOW`, `MEDIUM`, and `HIGH`. Filters are combined with AND logic. Results are newest first, default to 10 records per page, and allow at most 25 records per page.
+`created_by`, `status`, and `version` are server-controlled and cannot be overridden.
 
-Example:
+#### List
 
-```text
+```http
 GET /api/requests?search=printer&status=OPEN&priority=HIGH&page=1&per_page=10
 ```
 
-Ownership is enforced through the authenticated user's relationship. Unknown and non-owned request IDs return 404 rather than revealing that another user's request exists. Validation errors return 422, unauthenticated requests return 401, and successful creation returns 201.
+Query parameters:
 
-Run service request tests:
+- `search`: title substring
+- `status`: `OPEN`, `IN_PROGRESS`, or `RESOLVED`
+- `priority`: `LOW`, `MEDIUM`, or `HIGH`
+- `page`: integer, minimum 1
+- `per_page`: integer, 1–25
 
-```bash
-cd backend
-php artisan test --filter=ServiceRequestTest
-```
-
-Editing and deletion are not included in this API.
-
-## Status Workflow API (Phase 5)
-
-The allowed workflow is:
-
-```text
-OPEN -> IN_PROGRESS -> RESOLVED
-```
-
-Resolved requests are terminal. Skipping stages, reopening requests, duplicate transitions, and moving backward are rejected.
-
-Update a status:
-
-```text
-PATCH /api/requests/{id}/status
-```
+Success response:
 
 ```json
+{
+  "data": [],
+  "meta": {
+    "current_page": 1,
+    "per_page": 10,
+    "total": 0,
+    "last_page": 1
+  }
+}
+```
+
+Results are owned by the authenticated user and ordered newest first.
+
+#### Detail
+
+```http
+GET /api/requests/{id}
+```
+
+Success: `200` with `data`. Unknown or non-owned ID: `404`. Unauthenticated: `401`.
+
+#### Update status
+
+```http
+PATCH /api/requests/{id}/status
+Content-Type: application/json
+
 {
   "status": "IN_PROGRESS",
   "expected_version": 1,
@@ -185,57 +259,129 @@ PATCH /api/requests/{id}/status
 }
 ```
 
-A successful transition returns HTTP 200, increments `version` exactly once, and creates one audit history row. The next transition uses the updated version:
+Success: `200` with the updated request in `data`. Invalid payload: `422`. Invalid transition: `409` with `INVALID_TRANSITION`. Stale version: `409` with `STALE_VERSION`. Unknown or non-owned ID: `404`. Unauthenticated: `401`.
 
-```json
-{
-  "status": "RESOLVED",
-  "expected_version": 2,
-  "remark": "Printer repaired"
-}
+#### History
+
+```http
+GET /api/requests/{id}/history
 ```
 
-The endpoint uses a conditional database update containing the request ID, owner, status, and expected version. Failed or stale updates do not create history. Invalid transitions return HTTP 409 with `INVALID_TRANSITION`. Stale versions return HTTP 409 with `STALE_VERSION`.
+Success: `200` with `data` containing oldest-first history records. An empty history is `{"data":[]}`. Unknown or non-owned ID: `404`. Unauthenticated: `401`.
 
-The status update and history insertion occur in one database transaction. If history insertion fails, the status and version update is rolled back.
+## Business Rules
 
-All status endpoints require the authenticated Sanctum web session. Non-owned and unknown request IDs return 404. SQLite is used locally; the implementation uses an atomic conditional update rather than relying only on an application version check.
+Only these transitions are allowed:
 
-Run workflow tests:
-
-```bash
-cd backend
-php artisan test --filter=RequestStatusTest
+```text
+OPEN -> IN_PROGRESS -> RESOLVED
 ```
 
-## Frontend (Phase 7)
+- `RESOLVED` is terminal.
+- Skipping, reversing, reopening, and duplicate transitions are rejected.
+- A newly created request starts at status `OPEN` and version `1`.
+- Every successful transition increments the version exactly once.
+- Updates require `expected_version`.
+- Stale versions return HTTP 409 with `STALE_VERSION`.
+- Invalid transitions return HTTP 409 with `INVALID_TRANSITION`.
+- Request updates and history insertion occur in one database transaction.
 
-The Next.js frontend uses `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` and sends credentialed native Fetch requests. It implements:
+## Security Considerations
 
-- Sanctum cookie login and logout.
-- Protected dashboard, request list, creation, detail, history, and status controls.
-- Server-side search, filters, and pagination.
-- HTTP 409 conflict handling for stale status updates.
-- Responsive Tailwind UI with loading, empty, validation, and error states.
+- Passwords are hashed through Laravel's authentication facilities.
+- Sanctum uses stateful session authentication and HTTP-only cookies.
+- CSRF protection remains enabled.
+- CORS allows only `http://localhost:3000` locally with credentialed requests.
+- Request ownership is always derived from the authenticated user.
+- User and request APIs avoid exposing password hashes or internal protected fields.
+- Create and status update payloads reject or ignore protected identity fields.
+- Status updates use a conditional database update matching ownership, status, and expected version.
+- `.env`, `.env.local`, SQLite databases, dependencies, and framework build outputs are ignored.
 
-Start both applications:
+## Screenshots
+
+![Login](screenshots/01-login.png)
+
+![Dashboard](screenshots/02-dashboard.png)
+
+![Request list](screenshots/03-request-list.png)
+
+![Create request](screenshots/04-create-request.png)
+
+![Request details](screenshots/05-request-details.png)
+
+![Request history](screenshots/06-request-history.png)
+
+![Status transition](screenshots/07-status-transition.png)
+
+![Search and filters](screenshots/08-search-filters.png)
+
+![Version conflict](screenshots/09-version-conflict.png)
+
+## Known Limitations
+
+- No dedicated frontend test framework is configured.
+- Multi-process SQLite concurrency was not tested; the implementation uses conditional updates and database transactions, but SQLite locking behavior is not identical to production databases.
+- Formal mobile and tablet browser viewport testing remains manual.
+- Some network-failure and unexpected-response scenarios require manual browser verification.
+
+## AI Use & Verification
+
+1. **AI tools used:** GitHub Copilot / Copilot SDK in VS Code.
+2. **Areas assisted:** Backend API implementation, frontend implementation, Laravel tests, documentation, code review, and integration verification.
+3. **Representative prompts/advice received:** Phase-by-phase implementation specifications, error diagnosis, test design, and final repository cleanup guidance.
+4. **Independent review:** AI-generated changes were reviewed against the Laravel routes/controllers/resources and Next.js source, then exercised with PHPUnit, ESLint, Next.js build, curl, and browser interaction.
+5. **Corrections made:** During implementation and QA, session middleware, 404 ownership responses, literal search behavior, loading-state handling, logout error handling, and stale 409 refresh behavior were corrected after testing.
+6. **Independent technical decision:** The project uses the authenticated Laravel relationship and user-scoped queries instead of trusting client ownership fields. This keeps ownership enforcement at the backend boundary and provides consistent 404 responses for unknown or non-owned resources.
+
+## Assessment Traceability
+
+| Requirement | Implementation | Verification | Result |
+|---|---|---|---|
+| Laravel REST API | `backend/routes/api.php`, API controllers | Route list and HTTP integration | PASS |
+| Next.js frontend | `frontend/src/app` | Browser review, lint, build | PASS |
+| SQLite and migrations | `backend/database/migrations` | Migration status and tests | PASS |
+| Sanctum authentication | Auth controller, Sanctum config, session middleware | Browser login/logout and backend tests | PASS |
+| Two demo users | `database/seeders/DemoUserSeeder.php` | Seeder test and browser login | PASS |
+| Request ownership | User relationship queries | Backend tests and User A/User B browser test | PASS |
+| Creation and validation | Form Request and API resource | Backend tests and browser validation | PASS |
+| Search and filters | Eloquent query composition | Backend tests and browser interaction | PASS |
+| Server-side pagination | Laravel paginator | Backend tests and browser page navigation | PASS |
+| Request detail | Owner-scoped detail endpoint | Backend tests and browser detail view | PASS |
+| Allowed transitions | `RequestStatusService` | Backend tests and browser transitions | PASS |
+| Optimistic concurrency | Conditional versioned update | Backend tests and independent API sessions | PASS |
+| Transactional history | Database transaction and history model | Backend tests and browser history | PASS |
+| HTTP status handling | Controllers and API resources | Automated and manual verification | PASS |
+| Automated backend tests | `backend/tests/Feature` | 37 tests, 197 assertions | PASS |
+| Frontend lint/build | npm scripts | ESLint and Next build passed | PASS |
+| README setup | Root README | Manual review | PASS |
+| AI Use & Verification | This section | Manual review | PASS |
+| Screenshots | `screenshots/` | Login, dashboard, list, create, detail, history, transition, filters, and conflict images captured | PASS |
+| GitHub repository readiness | Git status and ignore rules | No secrets tracked; review pending commit | NOT VERIFIED |
+
+## Submission Checklist
+
+Replace placeholders before submission:
+
+- Repository URL: `[TO BE PROVIDED]`
+- Branch: `[TO BE PROVIDED]`
+- Final commit hash: `[TO BE PROVIDED]`
+
+Before submission:
+
+1. Review `git status`.
+2. Add intended source and documentation files.
+3. Verify no `.env`, `.env.local`, SQLite database, vendor, node_modules, or `.next` files are staged.
+4. Commit the final changes.
+5. Push only after explicit approval.
+
+Useful Git commands:
 
 ```bash
-cd backend
-php artisan serve --host=localhost --port=8000
-```
-
-```bash
-cd frontend
-npm run dev
-```
-
-Open `http://localhost:3000/login` and use `user1@example.com` / `Password123!`.
-
-Frontend verification:
-
-```bash
-cd frontend
-npm run lint
-npm run build
+git status
+git diff --stat
+git diff
+git add README.md backend frontend screenshots
+git diff --cached --stat
+git commit -m "docs: finalize assessment documentation"
 ```
