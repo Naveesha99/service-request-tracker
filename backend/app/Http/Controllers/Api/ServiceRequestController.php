@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\ServiceRequestStatus;
+use App\Exceptions\RequestStatusConflictException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ListServiceRequestsRequest;
 use App\Http\Requests\StoreServiceRequestRequest;
+use App\Http\Requests\UpdateRequestStatusRequest;
 use App\Http\Resources\RequestStatusHistoryResource;
 use App\Http\Resources\ServiceRequestResource;
 use App\Models\ServiceRequest;
+use App\Services\RequestStatusService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Request;
@@ -70,6 +73,30 @@ class ServiceRequestController extends Controller
         $serviceRequest = $request->user()->serviceRequests()->findOrFail($id);
 
         return (new ServiceRequestResource($serviceRequest))->additional([]);
+    }
+
+    public function updateStatus(UpdateRequestStatusRequest $request, int $id, RequestStatusService $service): JsonResponse
+    {
+        $serviceRequest = $request->user()->serviceRequests()->findOrFail($id);
+
+        $data = $request->validated();
+
+        try {
+            $updated = $service->transition(
+                $serviceRequest,
+                $request->user(),
+                $data['status'],
+                (int) $data['expected_version'],
+                $data['remark'] ?? null,
+            );
+        } catch (RequestStatusConflictException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'error' => ['code' => $exception->errorCode],
+            ], 409);
+        }
+
+        return (new ServiceRequestResource($updated))->response();
     }
 
     public function history(Request $request, int $id): AnonymousResourceCollection
