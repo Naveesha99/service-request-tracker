@@ -14,7 +14,7 @@ Backend:
 
 ```bash
 cd backend
-php artisan serve --host=127.0.0.1 --port=8000
+php artisan serve --host=localhost --port=8000
 ```
 
 Frontend:
@@ -24,8 +24,10 @@ cd frontend
 npm run dev
 ```
 
-Frontend: http://localhost:3000  
-Backend: http://127.0.0.1:8000
+Frontend: http://localhost:3000
+Backend: http://localhost:8000
+
+Use `localhost` consistently for both services. Do not mix `localhost` and `127.0.0.1`, because they are different cookie hosts.
 
 ## Database (Phase 2)
 
@@ -56,3 +58,46 @@ Development demo accounts:
 - `user2@example.com` / `Password123!`
 
 These accounts are for local development only and use securely hashed passwords.
+
+## Authentication (Phase 3)
+
+The backend uses Laravel Sanctum stateful SPA authentication. Authentication is based on the Laravel web session guard and HTTP-only cookies; no bearer tokens or browser storage are used.
+
+Local development uses `http://localhost:3000` for the Next.js frontend and `http://localhost:8000` for Laravel. The configured stateful domains are `localhost:3000` and `localhost:8000`, CORS credentials are enabled, and `FRONTEND_URL` is limited to `http://localhost:3000`.
+
+Session cookies are HTTP-only and use `SameSite=Lax` locally. `SESSION_SECURE_COOKIE=false` is appropriate only for local HTTP development. In production, serve both applications over HTTPS and set `SESSION_SECURE_COOKIE=true`, a restrictive `SESSION_DOMAIN`, `SESSION_SAME_SITE=lax` or `strict` where compatible, and the exact production frontend origin.
+
+CSRF initialization:
+
+```bash
+curl -i -c /tmp/srt-cookies http://localhost:8000/sanctum/csrf-cookie
+```
+
+For browser/native Fetch authentication, the frontend calls `/sanctum/csrf-cookie` first, then includes `credentials: "include"`. The reusable frontend client and authentication helper are in `frontend/src/lib/api.ts` and `frontend/src/lib/auth.ts`.
+
+API endpoints:
+
+- `POST /api/auth/login` — validates credentials and creates a web session.
+- `GET /api/auth/me` — returns the authenticated user's safe public fields; protected by `auth`.
+- `POST /api/auth/logout` — logs out, invalidates the session, and regenerates the CSRF token; protected by `auth`.
+
+Successful login regenerates the session. Logout invalidates the server-side session rather than merely deleting browser state. Passwords are checked through Laravel's authentication system. Safe user responses contain only `id`, `name`, and `email`. Service-request ownership will later be derived from `$request->user()` and enforced with authorization policies; client-supplied user IDs must not determine ownership.
+
+Run authentication tests:
+
+```bash
+cd backend
+php artisan test
+```
+
+Manual browser verification:
+
+1. Start Laravel with `cd backend && php artisan serve --host=localhost --port=8000`.
+2. Start Next.js with `cd frontend && npm run dev`.
+3. In browser developer tools, verify the frontend is using `http://localhost:3000`.
+4. Initialize CSRF with `GET http://localhost:8000/sanctum/csrf-cookie` or the frontend login helper.
+5. Call `POST http://localhost:8000/api/auth/login` with `user1@example.com` and `Password123!`, using credentials included.
+6. Call `GET http://localhost:8000/api/auth/me`; it should return Demo User One.
+7. Call `POST http://localhost:8000/api/auth/logout` using credentials.
+8. Call `/api/auth/me` again; it should return HTTP 401.
+9. In Application/Storage > Cookies, verify the Laravel session cookie is marked HttpOnly and is not readable from document JavaScript.
